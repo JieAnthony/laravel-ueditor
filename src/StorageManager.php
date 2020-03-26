@@ -18,6 +18,7 @@ use Overtrue\LaravelUEditor\Events\Uploaded;
 use Overtrue\LaravelUEditor\Events\Uploading;
 use Overtrue\LaravelUEditor\Events\Catched;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Illuminate\Support\Str;
 
 /**
  * Class StorageManager.
@@ -52,7 +53,7 @@ class StorageManager
     {
         $config = $this->getUploadConfig($request->get('action'));
 
-        if (!$request->hasFile($config['field_name'])) {
+        if (! $request->hasFile($config['field_name'])) {
             return $this->error('UPLOAD_ERR_NO_FILE');
         }
 
@@ -66,18 +67,18 @@ class StorageManager
 
         if ($this->eventSupport()) {
             $modifiedFilename = event(new Uploading($file, $filename, $config), [], true);
-            $filename = !is_null($modifiedFilename) ? $modifiedFilename : $filename;
+            $filename         = ! is_null($modifiedFilename) ? $modifiedFilename : $filename;
         }
 
         $this->store($file, $filename);
 
-        $response = [
-            'state' => 'SUCCESS',
-            'url' => $this->getUrl($filename),
-            'title' => $filename,
+        $response         = [
+            'state'    => 'SUCCESS',
+            'url'      => $this->getUrl($filename),
+            'title'    => $filename,
             'original' => $file->getClientOriginalName(),
-            'type' => $file->getExtension(),
-            'size' => $file->getSize(),
+            'type'     => $file->getExtension(),
+            'size'     => $file->getSize(),
         ];
 
         if ($this->eventSupport()) {
@@ -97,18 +98,18 @@ class StorageManager
     public function fetch(Request $request)
     {
         $config = $this->getUploadConfig($request->get('action'));
-        $urls = $request->get($config['field_name']);
+        $urls   = $request->get($config['field_name']);
         if (count($urls) === 0) {
             return $this->error('UPLOAD_ERR_NO_FILE');
         }
         $urls = array_unique($urls);
 
-        $list = array();
+        $list = [];
         foreach ($urls as $key => $url) {
-            $img = $this->download($url, $config);
+            $img  = $this->download($url, $config);
             $item = [];
             if ($img['state'] === 'SUCCESS') {
-                $file = $img['file'];
+                $file     = $img['file'];
                 $filename = $img['filename'];
                 $this->storeContent($file, $filename);
                 if ($this->eventSupport()) {
@@ -121,8 +122,8 @@ class StorageManager
         }
 
         $response = [
-            'state'=> count($list) ? 'SUCCESS':'ERROR',
-            'list'=> $list
+            'state' => count($list) ? 'SUCCESS' : 'ERROR',
+            'list'  => $list
         ];
 
         return response()->json($response);
@@ -140,29 +141,29 @@ class StorageManager
         if (strpos($url, 'http') !== 0) {
             return $this->error('ERROR_HTTP_LINK');
         }
-        $pathRes = parse_url($url);
-        $img = new \SplFileInfo($pathRes['path']);
+        $pathRes  = parse_url($url);
+        $img      = new \SplFileInfo($pathRes['path']);
         $original = $img->getFilename();
-        $ext = $img->getExtension();
-        $title = md5($url) . '.' . $ext;
+        $ext      = $img->getExtension();
+        $title    = config('ueditor.hash_filename') ? md5($original) . '.' . $ext : $original;
         $filename = $this->formatPath($config['path_format'], $title);
-        $info = [
-            'state' => 'SUCCESS',
-            'url' => $this->getUrl($filename),
-            'title' => $title,
+        $info     = [
+            'state'    => 'SUCCESS',
+            'url'      => $this->getUrl($filename),
+            'title'    => $title,
             'original' => $original,
-            'source' => $url,
-            'size' => 0,
-            'file' => '',
+            'source'   => $url,
+            'size'     => 0,
+            'file'     => '',
             'filename' => $filename,
         ];
 
         $context = stream_context_create(
-            array('http' => array(
+            ['http' => [
                 'follow_location' => false, // don't follow redirects
-            ))
+            ]]
         );
-        $file = fopen($url, 'r', false, $context);
+        $file    = fopen($url, 'r', false, $context);
         if ($file === false) {
             $info['state'] = 'ERROR';
             return $info;
@@ -187,20 +188,20 @@ class StorageManager
      * List all files of dir.
      *
      * @param string $path
-     * @param int    $start
-     * @param int    $size
-     * @param array  $allowFiles
+     * @param int $start
+     * @param int $size
+     * @param array $allowFiles
      *
      * @return Response
      */
     public function listFiles($path, $start, $size = 20, array $allowFiles = [])
     {
         $allFiles = $this->disk->listContents($path, true);
-        $files = $this->paginateFiles($allFiles, $start, $size);
+        $files    = $this->paginateFiles($allFiles, $start, $size);
 
         return [
             'state' => empty($files) ? 'EMPTY' : 'SUCCESS',
-            'list' => $files,
+            'list'  => $files,
             'start' => $start,
             'total' => count($allFiles),
         ];
@@ -210,8 +211,8 @@ class StorageManager
      * Split results.
      *
      * @param array $files
-     * @param int   $start
-     * @param int   $size
+     * @param int $start
+     * @param int $size
      *
      * @return array
      */
@@ -219,7 +220,7 @@ class StorageManager
     {
         return collect($files)->where('type', 'file')->splice($start)->take($size)->map(function ($file) {
             return [
-                'url' => $this->getUrl($file['path']),
+                'url'   => $this->getUrl($file['path']),
                 'mtime' => $file['timestamp'],
             ];
         })->all();
@@ -229,7 +230,7 @@ class StorageManager
      * Store file.
      *
      * @param \Symfony\Component\HttpFoundation\File\UploadedFile $file
-     * @param string                                              $filename
+     * @param string $filename
      *
      * @return mixed
      */
@@ -242,7 +243,7 @@ class StorageManager
      * Store file from content.
      *
      * @param string
-     * @param string                                              $filename
+     * @param string $filename
      *
      * @return mixed
      */
@@ -255,7 +256,7 @@ class StorageManager
      * Validate the input file.
      *
      * @param \Symfony\Component\HttpFoundation\File\UploadedFile $file
-     * @param array                                               $config
+     * @param array $config
      *
      * @return bool|string
      */
@@ -263,12 +264,12 @@ class StorageManager
     {
         $error = false;
 
-        if (!$file->isValid()) {
+        if (! $file->isValid()) {
             $error = $file->getError();
         } elseif ($file->getSize() > $config['max_size']) {
             $error = 'upload.ERROR_SIZE_EXCEED';
-        } elseif (!empty($config['allow_files']) &&
-            !in_array('.'.$file->getClientOriginalExtension(), $config['allow_files'])) {
+        } elseif (! empty($config['allow_files']) &&
+            ! in_array('.' . $file->getClientOriginalExtension(), $config['allow_files'])) {
             $error = 'upload.ERROR_TYPE_NOT_ALLOWED';
         }
 
@@ -279,15 +280,15 @@ class StorageManager
      * Get the new filename of file.
      *
      * @param \Symfony\Component\HttpFoundation\File\UploadedFile $file
-     * @param array                                               $config
+     * @param array $config
      *
      * @return string
      */
     protected function getFilename(UploadedFile $file, array $config)
     {
-        $ext = '.'.$file->getClientOriginalExtension();
+        $ext = '.' . $file->getClientOriginalExtension();
 
-        $filename = config('ueditor.hash_filename') ? md5($file->getFilename()).$ext : $file->getClientOriginalName();
+        $filename = config('ueditor.hash_filename') ? md5($file->getFilename()) . $ext : $file->getClientOriginalName();
 
         return $this->formatPath($config['path_format'], $filename);
     }
@@ -311,13 +312,13 @@ class StorageManager
         $config = [];
 
         foreach ($prefixes as $prefix) {
-            if ($action == $upload[$prefix.'ActionName']) {
+            if ($action == $upload[$prefix . 'ActionName']) {
                 $config = [
-                    'action' => array_get($upload, $prefix.'ActionName'),
-                    'field_name' => array_get($upload, $prefix.'FieldName'),
-                    'max_size' => array_get($upload, $prefix.'MaxSize'),
-                    'allow_files' => array_get($upload, $prefix.'AllowFiles', []),
-                    'path_format' => array_get($upload, $prefix.'PathFormat'),
+                    'action'      => data_get($upload, $prefix . 'ActionName'),
+                    'field_name'  => data_get($upload, $prefix . 'FieldName'),
+                    'max_size'    => data_get($upload, $prefix . 'MaxSize'),
+                    'allow_files' => data_get($upload, $prefix . 'AllowFiles', []),
+                    'path_format' => data_get($upload, $prefix . 'PathFormat'),
                 ];
 
                 break;
@@ -349,18 +350,18 @@ class StorageManager
      */
     protected function formatPath($path, $filename)
     {
-        $replacement = array_merge(explode('-', date('Y-y-m-d-H-i-s')), [$filename, time()]);
+        $replacement  = array_merge(explode('-', date('Y-y-m-d-H-i-s')), [$filename, time()]);
         $placeholders = ['{yyyy}', '{yy}', '{mm}', '{dd}', '{hh}', '{ii}', '{ss}', '{filename}', '{time}'];
-        $path = str_replace($placeholders, $replacement, $path);
+        $path         = str_replace($placeholders, $replacement, $path);
 
         //替换随机字符串
         if (preg_match('/\{rand\:([\d]*)\}/i', $path, $matches)) {
             $length = min($matches[1], strlen(PHP_INT_MAX));
-            $path = preg_replace('/\{rand\:[\d]*\}/i', str_pad(mt_rand(0, pow(10, $length) - 1), $length, '0', STR_PAD_LEFT), $path);
+            $path   = preg_replace('/\{rand\:[\d]*\}/i', str_pad(mt_rand(0, pow(10, $length) - 1), $length, '0', STR_PAD_LEFT), $path);
         }
 
-        if (!str_contains($path, $filename)) {
-            $path = str_finish($path, '/').$filename;
+        if (! Str::contains($path, $filename)) {
+            $path = Str::finish($path, '/') . $filename;
         }
 
         return $path;
